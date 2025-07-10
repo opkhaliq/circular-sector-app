@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Circular Sector Drawing</title>
+  <link rel="stylesheet" href="https://js.arcgis.com/4.33/esri/themes/light/main.css" />
+  <script src="https://js.arcgis.com/4.33/"></script>
+  <style>
+    html, body, #viewDiv { padding:0; margin:0; height:100%; width:100%; }
+    #controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(255,255,255,0.9);
+      padding: 10px;
+      border-radius: 4px;
+      z-index: 10;
+    }
+    label { display: block; margin-top: 5px; }
+    input, button { width: 100%; }
+  </style>
+</head>
+<body>
+  <div id="viewDiv"></div>
+  <div id="controls">
+    <label>Direction (°): <input id="dir" type="number" value="45"></label>
+    <label>Angle (°): <input id="ang" type="number" value="60"></label>
+    <label>Radius (m): <input id="rad" type="number" value="500"></label>
+    <button id="clearBtn">Clear</button>
+  </div>
+
+  <script>
+    require([
+      "esri/Map", "esri/views/MapView",
+      "esri/geometry/Point", "esri/Graphic",
+      "esri/layers/GraphicsLayer", "esri/geometry/geometryEngine"
+    ], (Map, MapView, Point, Graphic, GraphicsLayer, geometryEngine) => {
+      const map = new Map({ basemap: "streets-navigation-vector" });
+      const view = new MapView({
+        container: "viewDiv",
+        map: map,
+        center: [0, 0],
+        zoom: 2
+      });
+
+      const graphicsLayer = new GraphicsLayer();
+      map.add(graphicsLayer);
+
+      view.on("click", (event) => {
+        graphicsLayer.removeAll();
+
+        const dir = +document.getElementById("dir").value;
+        const ang = +document.getElementById("ang").value;
+        const rad = +document.getElementById("rad").value;
+
+        const center = new Point({
+          x: event.mapPoint.x,
+          y: event.mapPoint.y,
+          spatialReference: view.spatialReference
+        });
+
+        const sector = createSector(center, dir, ang, rad);
+        const graphic = new Graphic({
+          geometry: sector,
+          symbol: {
+            type: "simple-fill",
+            color: [0, 0, 255, 0.2],
+            outline: { color: "blue", width: 2 }
+          }
+        });
+
+        graphicsLayer.add(graphic);
+      });
+
+      document.getElementById("clearBtn").addEventListener("click", () => {
+        graphicsLayer.removeAll();
+      });
+
+      function createSector(center, direction, angle, radius) {
+        const segments = 100;
+        const half = angle / 2;
+        const rings = [];
+        const points = [];
+
+        for (let i = 0; i <= segments; i++) {
+          const bearing = direction - half + (angle * i / segments);
+          const dest = geometryEngine.destination(center, radius, bearing, "meters");
+          points.push([dest.x, dest.y]);
+        }
+
+        // Close the polygon (vertex order: center -> arc -> center)
+        points.unshift([center.x, center.y]);
+        points.push([center.x, center.y]);
+
+        rings.push(points);
+        return { type: "polygon", rings: rings, spatialReference: view.spatialReference };
+      }
+    });
+  </script>
+</body>
+</html>
